@@ -626,6 +626,21 @@
             color: var(--primary-color);
         }
 
+        /* Loading Spinner */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.3);
+            border-radius: 50%;
+            border-top-color: #4361ee;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         /* Responsividade */
         @media (max-width: 992px) {
             .sidebar {
@@ -694,30 +709,28 @@
     </style>
 </head>
 <body>
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    
+    <script>
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCAZJIWT5FPTshkArRs8v2U9hXAmtnlG-Q",
+            authDomain: "myname22.firebaseapp.com",
+            databaseURL: "https://myname22-default-rtdb.firebaseio.com",
+            projectId: "myname22",
+            storageBucket: "myname22.appspot.com",
+            messagingSenderId: "346543194739",
+            appId: "1:346543194739:web:bcb8fa36574ca5de552006"
+        };
 
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyCAZJIWT5FPTshkArRs8v2U9hXAmtnlG-Q",
-    authDomain: "myname22.firebaseapp.com",
-    databaseURL: "https://myname22-default-rtdb.firebaseio.com",
-    projectId: "myname22",
-    storageBucket: "myname22.firebasestorage.app",
-    messagingSenderId: "346543194739",
-    appId: "1:346543194739:web:bcb8fa36574ca5de552006",
-    measurementId: "G-96C1LJH3MB"
-  };
+        // Inicializar Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const clientsRef = database.ref('clientes');
+    </script>
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
     <div class="container">
         <!-- Sidebar -->
         <aside class="sidebar">
@@ -809,14 +822,18 @@
                             </tr>
                         </thead>
                         <tbody id="clientsTableBody">
-                            <!-- Dados serão preenchidos via JavaScript -->
+                            <tr>
+                                <td colspan="7" class="no-results">
+                                    <div class="loading"></div> Carregando clientes...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
                 
                 <div class="table-footer">
                     <div class="pagination-info">
-                        Mostrando <span id="showingFrom">1</span>-<span id="showingTo">10</span> de <span id="totalClients">0</span> clientes
+                        Mostrando <span id="showingFrom">0</span>-<span id="showingTo">0</span> de <span id="totalClients">0</span> clientes
                     </div>
                     <div class="pagination-controls">
                         <button class="btn" id="prevPage"><i class="fas fa-chevron-left"></i></button>
@@ -891,334 +908,270 @@
     </div>
 
     <script>
-    // Carrega os dados do localStorage ou usa os dados padrão
-    let clientsData = JSON.parse(localStorage.getItem('clientsData')) || [
-        {
-            id: 1,
-            name: "CRISTOVÃO USSACA",
-            email: "crist@gmail.com",
-            phone: "(11) 99999-9999",
-            company: "USSACA Design",
-            serviceType: "Criativo",
-            status: "Entregue",
-            value: 4500.00,
-            notes: "Cliente preferencial",
-            lastContact: "2023-05-15"
-        },
-        {
-            id: 2,
-            name: "RAFAEL PANDA",
-            email: "grupopanda@gmail.com",
-            phone: "(21) 98888-8888",
-            company: "Grupo Panda",
-            serviceType: "Criação de Site",
-            status: "Realizando",
-            value: 8900.00,
-            notes: "Reunião marcada para sexta",
-            lastContact: "2023-05-10"
-        },
-        {
-            id: 3,
-            name: "JOÃO VINICIUS",
-            email: "jose@vinicus.com",
-            phone: "(31) 97777-7777",
-            company: "Vinicius Tech",
-            serviceType: "Tráfego Pago",
-            status: "Realizando",
-            value: 3200.00,
-            notes: "Campanha em andamento",
-            lastContact: "2023-05-05"
-        },
-        {
-            id: 4,
-            name: "DAVID TDS",
-            email: "tdsrendering@gmail.com",
-            company: "TDS Rendering",
-            phone: "(41) 96666-6666",
-            serviceType: "Consultoria",
-            status: "Entregue",
-            value: 2200.00,
-            notes: "Projeto concluído com sucesso",
-            lastContact: "2023-04-28"
-        },
-        {
-            id: 5,
-            name: "MARCELIA VMZ",
-            email: "acompanhamento@rebroo.com",
-            phone: "(51) 95555-5555",
-            company: "Rebroo",
-            serviceType: "Mentoria",
-            status: "Realizando",
-            value: 1800.00,
-            notes: "Mentoria semanal",
-            lastContact: "2023-04-15"
-        }
-    ];
+        // Variáveis globais
+        let clientsData = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let filteredData = [];
+        let currentSort = { column: 'name', direction: 'asc' };
+        let currentFilter = 'all';
+        let editingClientId = null;
 
-    // Salva os dados no localStorage
-    function saveData() {
-        localStorage.setItem('clientsData', JSON.stringify(clientsData));
-    }
-
-    // Variáveis globais
-    let currentPage = 1;
-    const itemsPerPage = 25;
-    let filteredData = [...clientsData];
-    let currentSort = { column: 'name', direction: 'asc' };
-    let currentFilter = 'all';
-    let editingClientId = null;
-
-    // Inicialização
-    document.addEventListener('DOMContentLoaded', function() {
-        renderClientsTable();
-        setupEventListeners();
-        updatePaginationInfo();
-        calculateTotalValue();
-    });
-
-    // Renderiza a tabela de clientes
-    function renderClientsTable() {
-        const tableBody = document.getElementById('clientsTableBody');
-        tableBody.innerHTML = '';
-
-        // Aplica filtro, busca e ordenação
-        applyFiltersAndSorting();
-
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedData = filteredData.slice(startIndex, endIndex);
-
-        if (paginatedData.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="7" class="no-results">Nenhum cliente encontrado</td>`;
-            tableBody.appendChild(row);
-            return;
-        }
-
-        paginatedData.forEach(client => {
-            const row = document.createElement('tr');
-            
-            // Formata a situação
-            let statusClass = client.status === 'Entregue' ? 'status-entregue' : 'status-realizando';
-            let statusText = client.status;
-            
-            // Formata a data
-            const formattedDate = formatDate(client.lastContact);
-            const initials = getInitials(client.name);
-
-            row.innerHTML = `
-                <td>
-                    <div class="client-info">
-                        <span class="client-initials" style="background-color: ${stringToColor(initials)}">${initials}</span>
-                        <div>
-                            <strong>${client.name}</strong>
-                            <small>${client.email}</small>
-                        </div>
-                    </div>
-                </td>
-                <td>R$ ${client.value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                <td>${client.phone}</td>
-                <td>${client.company}</td>
-                <td><span class="service-badge">${client.serviceType}</span></td>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                <td class="actions-cell">
-                    <button class="action-btn edit-btn" data-id="${client.id}">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn delete-btn" data-id="${client.id}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            `;
-            
-            tableBody.appendChild(row);
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            loadClients();
         });
 
-        updatePaginationInfo();
-        calculateTotalValue();
-    }
-
-    // Aplica filtros, busca e ordenação
-    function applyFiltersAndSorting() {
-        // Aplica filtro
-        if (currentFilter !== 'all') {
-            filteredData = clientsData.filter(client => client.status === currentFilter);
-        } else {
-            filteredData = [...clientsData];
-        }
-
-        // Aplica busca
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        if (searchTerm) {
-            filteredData = filteredData.filter(client => 
-                client.name.toLowerCase().includes(searchTerm) || 
-                client.email.toLowerCase().includes(searchTerm) ||
-                client.company.toLowerCase().includes(searchTerm) ||
-                client.phone.includes(searchTerm) ||
-                client.serviceType.toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Aplica ordenação
-        filteredData.sort((a, b) => {
-            const valueA = a[currentSort.column];
-            const valueB = b[currentSort.column];
-            
-            if (valueA < valueB) {
-                return currentSort.direction === 'asc' ? -1 : 1;
-            }
-            if (valueA > valueB) {
-                return currentSort.direction === 'asc' ? 1 : -1;
-            }
-            return 0;
-        });
-    }
-
-    // Configura os event listeners
-    function setupEventListeners() {
-        // Botão Novo Cliente
-        document.getElementById('newClientBtn').addEventListener('click', openClientModal);
-        
-        // Botão Fechar Modal
-        document.querySelector('.close-modal').addEventListener('click', closeClientModal);
-        
-        // Botão Cancelar Modal
-        document.querySelector('.cancel-btn').addEventListener('click', closeClientModal);
-        
-        // Submissão do Formulário
-        document.getElementById('clientForm').addEventListener('submit', handleFormSubmit);
-        
-        // Paginação
-        document.getElementById('prevPage').addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderClientsTable();
-            }
-        });
-        
-        document.getElementById('nextPage').addEventListener('click', () => {
-            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderClientsTable();
-            }
-        });
-        
-        // Botão Exportar
-        document.getElementById('exportClientsBtn').addEventListener('click', exportClientsToCSV);
-        
-        // Botão Importar
-        document.getElementById('importClientsBtn').addEventListener('click', importClientsFromCSV);
-        
-        // Filtros
-        document.querySelectorAll('.filter-option').forEach(option => {
-            option.addEventListener('click', function(e) {
-                e.preventDefault();
-                currentFilter = this.getAttribute('data-filter');
-                currentPage = 1;
-                renderClientsTable();
-            });
-        });
-        
-        // Ordenação
-        document.querySelectorAll('[data-sort]').forEach(icon => {
-            icon.addEventListener('click', function() {
-                const column = this.getAttribute('data-sort');
+        // Carrega clientes do Firebase
+        function loadClients() {
+            clientsRef.on('value', (snapshot) => {
+                clientsData = [];
+                const data = snapshot.val();
                 
-                if (currentSort.column === column) {
-                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                if (data) {
+                    Object.keys(data).forEach(key => {
+                        clientsData.push({ id: key, ...data[key] });
+                    });
+                    
+                    applyFiltersAndSorting();
+                    renderClientsTable();
+                    calculateTotalValue();
                 } else {
-                    currentSort.column = column;
-                    currentSort.direction = 'asc';
+                    document.getElementById('clientsTableBody').innerHTML = 
+                        '<tr><td colspan="7" class="no-results">Nenhum cliente cadastrado</td></tr>';
                 }
+            });
+        }
+
+        // Renderiza a tabela de clientes
+        function renderClientsTable() {
+            const tableBody = document.getElementById('clientsTableBody');
+            
+            if (filteredData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="no-results">Nenhum cliente encontrado</td></tr>';
+                updatePaginationInfo();
+                return;
+            }
+
+            tableBody.innerHTML = '';
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedData = filteredData.slice(startIndex, endIndex);
+
+            paginatedData.forEach(client => {
+                const statusClass = client.status === 'Entregue' ? 'status-entregue' : 'status-realizando';
+                const initials = getInitials(client.name);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="client-info">
+                            <span class="client-initials" style="background-color: ${stringToColor(initials)}">${initials}</span>
+                            <div>
+                                <strong>${client.name}</strong>
+                                <small>${client.email}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>R$ ${parseFloat(client.value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td>${client.phone}</td>
+                    <td>${client.company}</td>
+                    <td><span class="service-badge">${client.serviceType}</span></td>
+                    <td><span class="status-badge ${statusClass}">${client.status}</span></td>
+                    <td class="actions-cell">
+                        <button class="action-btn edit-btn" data-id="${client.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn delete-btn" data-id="${client.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            updatePaginationInfo();
+        }
+
+        // Aplica filtros e ordenação
+        function applyFiltersAndSorting() {
+            // Aplica filtro
+            if (currentFilter !== 'all') {
+                filteredData = clientsData.filter(client => client.status === currentFilter);
+            } else {
+                filteredData = [...clientsData];
+            }
+
+            // Aplica busca
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            if (searchTerm) {
+                filteredData = filteredData.filter(client => 
+                    (client.name && client.name.toLowerCase().includes(searchTerm)) || 
+                    (client.email && client.email.toLowerCase().includes(searchTerm)) ||
+                    (client.company && client.company.toLowerCase().includes(searchTerm)) ||
+                    (client.phone && client.phone.includes(searchTerm)) ||
+                    (client.serviceType && client.serviceType.toLowerCase().includes(searchTerm))
+                );
+            }
+
+            // Aplica ordenação
+            filteredData.sort((a, b) => {
+                const valueA = a[currentSort.column];
+                const valueB = b[currentSort.column];
                 
-                renderClientsTable();
-                updateSortIcons();
+                if (valueA < valueB) {
+                    return currentSort.direction === 'asc' ? -1 : 1;
+                }
+                if (valueA > valueB) {
+                    return currentSort.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
             });
-        });
-        
-        // Busca
-        document.getElementById('searchInput').addEventListener('input', () => {
+
             currentPage = 1;
-            renderClientsTable();
-        });
-        
-        // Delegation para botões de ação na tabela
-        document.getElementById('clientsTableBody').addEventListener('click', function(e) {
-            const target = e.target.closest('button');
-            if (!target) return;
-            
-            const clientId = parseInt(target.getAttribute('data-id'));
-            
-            if (target.classList.contains('edit-btn')) {
-                editClient(clientId);
-            } else if (target.classList.contains('delete-btn')) {
-                deleteClient(clientId);
-            }
-        });
-        
-        // Fechar modal ao clicar fora
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('clientModal')) {
-                closeClientModal();
-            }
-        });
-    }
-
-    // Atualiza os ícones de ordenação
-    function updateSortIcons() {
-        document.querySelectorAll('[data-sort]').forEach(icon => {
-            icon.className = 'fas fa-sort';
-            if (icon.getAttribute('data-sort') === currentSort.column) {
-                icon.classList.add(`fa-sort-${currentSort.direction}`);
-            }
-        });
-    }
-
-    // Atualiza as informações de paginação
-    function updatePaginationInfo() {
-        const showingFrom = document.getElementById('showingFrom');
-        const showingTo = document.getElementById('showingTo');
-        const totalClients = document.getElementById('totalClients');
-        const pageNumbers = document.getElementById('pageNumbers');
-        
-        const startIndex = (currentPage - 1) * itemsPerPage + 1;
-        const endIndex = Math.min(startIndex + itemsPerPage - 1, filteredData.length);
-        const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-        
-        showingFrom.textContent = startIndex;
-        showingTo.textContent = endIndex;
-        totalClients.textContent = filteredData.length;
-        
-        // Atualiza botões de paginação
-        document.getElementById('prevPage').disabled = currentPage === 1;
-        document.getElementById('nextPage').disabled = currentPage >= totalPages;
-        
-        // Atualiza números das páginas
-        pageNumbers.innerHTML = '';
-        const maxPagesToShow = 3;
-        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-        
-        if (endPage - startPage + 1 < maxPagesToShow) {
-            startPage = Math.max(1, endPage - maxPagesToShow + 1);
         }
-        
-        for (let i = startPage; i <= endPage; i++) {
-            const btn = document.createElement('button');
-            btn.className = `btn ${i === currentPage ? 'active' : ''}`;
-            btn.textContent = i;
-            btn.addEventListener('click', () => {
-                currentPage = i;
+
+        // Configura os event listeners
+        function setupEventListeners() {
+            // Botão Novo Cliente
+            document.getElementById('newClientBtn').addEventListener('click', openClientModal);
+            
+            // Botão Fechar Modal
+            document.querySelector('.close-modal').addEventListener('click', closeClientModal);
+            
+            // Botão Cancelar Modal
+            document.querySelector('.cancel-btn').addEventListener('click', closeClientModal);
+            
+            // Submissão do Formulário
+            document.getElementById('clientForm').addEventListener('submit', handleFormSubmit);
+            
+            // Paginação
+            document.getElementById('prevPage').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderClientsTable();
+                }
+            });
+            
+            document.getElementById('nextPage').addEventListener('click', () => {
+                const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderClientsTable();
+                }
+            });
+            
+            // Filtros
+            document.querySelectorAll('.filter-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    currentFilter = this.getAttribute('data-filter');
+                    applyFiltersAndSorting();
+                    renderClientsTable();
+                });
+            });
+            
+            // Ordenação
+            document.querySelectorAll('[data-sort]').forEach(icon => {
+                icon.addEventListener('click', function() {
+                    const column = this.getAttribute('data-sort');
+                    
+                    if (currentSort.column === column) {
+                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSort.column = column;
+                        currentSort.direction = 'asc';
+                    }
+                    
+                    applyFiltersAndSorting();
+                    renderClientsTable();
+                    updateSortIcons();
+                });
+            });
+            
+            // Busca
+            document.getElementById('searchInput').addEventListener('input', () => {
+                applyFiltersAndSorting();
                 renderClientsTable();
             });
-            pageNumbers.appendChild(btn);
+            
+            // Delegation para botões de ação na tabela
+            document.getElementById('clientsTableBody').addEventListener('click', function(e) {
+                const target = e.target.closest('button');
+                if (!target) return;
+                
+                const clientId = target.getAttribute('data-id');
+                
+                if (target.classList.contains('edit-btn')) {
+                    editClient(clientId);
+                } else if (target.classList.contains('delete-btn')) {
+                    deleteClient(clientId);
+                }
+            });
+            
+            // Fechar modal ao clicar fora
+            window.addEventListener('click', (e) => {
+                if (e.target === document.getElementById('clientModal')) {
+                    closeClientModal();
+                }
+            });
         }
+
+        // Atualiza os ícones de ordenação
+        function updateSortIcons() {
+            document.querySelectorAll('[data-sort]').forEach(icon => {
+                icon.className = 'fas fa-sort';
+                if (icon.getAttribute('data-sort') === currentSort.column) {
+                    icon.classList.add(`fa-sort-${currentSort.direction}`);
+                }
+            });
+        }
+
+        // Atualiza as informações de paginação
+        function updatePaginationInfo() {
+            const showingFrom = document.getElementById('showingFrom');
+            const showingTo = document.getElementById('showingTo');
+            const totalClients = document.getElementById('totalClients');
+            const pageNumbers = document.getElementById('pageNumbers');
+            
+            const startIndex = (currentPage - 1) * itemsPerPage + 1;
+            const endIndex = Math.min(startIndex + itemsPerPage - 1, filteredData.length);
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            
+            showingFrom.textContent = startIndex;
+            showingTo.textContent = endIndex;
+            totalClients.textContent = filteredData.length;
+            
+            // Atualiza botões de paginação
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage >= totalPages;
+            
+            // Atualiza números das páginas
+            pageNumbers.innerHTML = '';
+            const maxPagesToShow = 3;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+            
+            if (endPage - startPage + 1 < maxPagesToShow) {
+                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const btn = document.createElement('button');
+                btn.className = `btn ${i === currentPage ? 'active' : ''}`;
+                btn.textContent = i;
+                btn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderClientsTable();
+                });
+                pageNumbers.appendChild(btn);
+                   }
     }
 
     // Calcula o valor total de todos os clientes
     function calculateTotalValue() {
-        const total = clientsData.reduce((sum, client) => sum + (client.value || 0), 0);
+        const total = clientsData.reduce((sum, client) => sum + (parseFloat(client.value) || 0, 0);
         document.getElementById('totalValue').textContent = 
             `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
     }
@@ -1247,178 +1200,75 @@
             company: document.getElementById('clientCompany').value,
             serviceType: document.getElementById('clientServiceType').value,
             status: document.getElementById('clientStatus').value,
-            value: parseFloat(document.getElementById('clientValue').value),
+            value: document.getElementById('clientValue').value,
             notes: document.getElementById('clientNotes').value,
             lastContact: new Date().toISOString().split('T')[0]
         };
-        
+
         if (editingClientId) {
-            // Edição de cliente existente
-            const index = clientsData.findIndex(c => c.id === editingClientId);
-            if (index !== -1) {
-                clientsData[index] = { ...clientsData[index], ...clientData };
-            }
+            // Atualiza cliente existente
+            clientsRef.child(editingClientId).update(clientData)
+                .then(() => {
+                    alert('Cliente atualizado com sucesso!');
+                    closeClientModal();
+                })
+                .catch(error => {
+                    console.error('Erro ao atualizar cliente:', error);
+                    alert('Erro ao atualizar cliente');
+                });
         } else {
-            // Novo cliente
-            const newId = clientsData.length > 0 ? Math.max(...clientsData.map(c => c.id)) + 1 : 1;
-            clientData.id = newId;
-            clientsData.unshift(clientData);
+            // Adiciona novo cliente
+            clientsRef.push(clientData)
+                .then(() => {
+                    alert('Cliente adicionado com sucesso!');
+                    closeClientModal();
+                })
+                .catch(error => {
+                    console.error('Erro ao adicionar cliente:', error);
+                    alert('Erro ao adicionar cliente');
+                });
         }
-        
-        saveData(); // Salva no localStorage
-        renderClientsTable();
-        closeClientModal();
-        
-        alert(`Cliente ${editingClientId ? 'atualizado' : 'cadastrado'} com sucesso!`);
     }
 
     // Edita um cliente
     function editClient(clientId) {
-        const client = clientsData.find(c => c.id === clientId);
-        if (!client) return;
-        
-        editingClientId = clientId;
-        document.getElementById('modalTitle').textContent = 'Editar Cliente';
-        document.getElementById('clientId').value = client.id;
-        document.getElementById('clientName').value = client.name;
-        document.getElementById('clientEmail').value = client.email;
-        document.getElementById('clientPhone').value = client.phone;
-        document.getElementById('clientCompany').value = client.company;
-        document.getElementById('clientServiceType').value = client.serviceType;
-        document.getElementById('clientStatus').value = client.status;
-        document.getElementById('clientValue').value = client.value;
-        document.getElementById('clientNotes').value = client.notes || '';
-        
-        document.getElementById('clientModal').style.display = 'flex';
+        clientsRef.child(clientId).once('value', (snapshot) => {
+            const client = snapshot.val();
+            if (!client) return;
+            
+            editingClientId = clientId;
+            document.getElementById('modalTitle').textContent = 'Editar Cliente';
+            document.getElementById('clientId').value = clientId;
+            document.getElementById('clientName').value = client.name || '';
+            document.getElementById('clientEmail').value = client.email || '';
+            document.getElementById('clientPhone').value = client.phone || '';
+            document.getElementById('clientCompany').value = client.company || '';
+            document.getElementById('clientServiceType').value = client.serviceType || '';
+            document.getElementById('clientStatus').value = client.status || '';
+            document.getElementById('clientValue').value = client.value || '';
+            document.getElementById('clientNotes').value = client.notes || '';
+            
+            document.getElementById('clientModal').style.display = 'flex';
+        });
     }
 
     // Exclui um cliente
     function deleteClient(clientId) {
         if (confirm('Tem certeza que deseja excluir este cliente?')) {
-            const index = clientsData.findIndex(c => c.id === clientId);
-            if (index !== -1) {
-                clientsData.splice(index, 1);
-                saveData(); // Salva no localStorage
-                
-                // Ajusta a página atual se necessário
-                const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-                if (currentPage > totalPages && totalPages > 0) {
-                    currentPage = totalPages;
-                } else if (totalPages === 0) {
-                    currentPage = 1;
-                }
-                
-                renderClientsTable();
-                alert('Cliente excluído com sucesso!');
-            }
+            clientsRef.child(clientId).remove()
+                .then(() => {
+                    alert('Cliente excluído com sucesso!');
+                })
+                .catch(error => {
+                    console.error('Erro ao excluir cliente:', error);
+                    alert('Erro ao excluir cliente');
+                });
         }
-    }
-
-    // Exporta clientes para CSV
-    function exportClientsToCSV() {
-        let csvContent = "data:text/csv;charset=utf-8,";
-        
-        // Cabeçalhos
-        csvContent += "Nome,Email,Telefone,Empresa,Tipo de Serviço,Situação,Valor,Observações\n";
-        
-        // Dados
-        clientsData.forEach(client => {
-            const row = [
-                `"${client.name}"`,
-                client.email,
-                client.phone,
-                `"${client.company}"`,
-                client.serviceType,
-                client.status,
-                client.value.toFixed(2),
-                `"${client.notes || ''}"`
-            ].join(',');
-            
-            csvContent += row + "\n";
-        });
-        
-        // Cria link de download
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "clientes_exportados.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-
-    // Importa clientes de um arquivo CSV
-    function importClientsFromCSV() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.csv';
-        
-        input.onchange = e => {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            
-            reader.onload = function(event) {
-                const csvData = event.target.result;
-                const lines = csvData.split('\n');
-                const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-                
-                // Verifica se o CSV tem o formato esperado
-                const expectedHeaders = ['Nome', 'Email', 'Telefone', 'Empresa', 'Tipo de Serviço', 'Situação', 'Valor', 'Observações'];
-                if (!expectedHeaders.every(h => headers.includes(h))) {
-                    alert('Formato de arquivo CSV inválido. Certifique-se de que o arquivo tenha as colunas corretas.');
-                    return;
-                }
-                
-                const newClients = [];
-                
-                for (let i = 1; i < lines.length; i++) {
-                    if (lines[i].trim() === '') continue;
-                    
-                    const values = lines[i].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => v.trim().replace(/"/g, ''));
-                    
-                    const client = {
-                        id: clientsData.length > 0 ? Math.max(...clientsData.map(c => c.id)) + i : i,
-                        name: values[headers.indexOf('Nome')],
-                        email: values[headers.indexOf('Email')],
-                        phone: values[headers.indexOf('Telefone')],
-                        company: values[headers.indexOf('Empresa')],
-                        serviceType: values[headers.indexOf('Tipo de Serviço')],
-                        status: values[headers.indexOf('Situação')],
-                        value: parseFloat(values[headers.indexOf('Valor')]),
-                        notes: values[headers.indexOf('Observações')],
-                        lastContact: new Date().toISOString().split('T')[0]
-                    };
-                    
-                    newClients.push(client);
-                }
-                
-                if (newClients.length > 0) {
-                    if (confirm(`Deseja importar ${newClients.length} cliente(s)?`)) {
-                        clientsData = [...newClients, ...clientsData];
-                        saveData();
-                        renderClientsTable();
-                        alert('Clientes importados com sucesso!');
-                    }
-                } else {
-                    alert('Nenhum cliente válido encontrado no arquivo.');
-                }
-            };
-            
-            reader.readAsText(file);
-        };
-        
-        input.click();
-    }
-
-    // Formata a data para o formato brasileiro
-    function formatDate(dateString) {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('pt-BR');
     }
 
     // Gera iniciais a partir do nome
     function getInitials(name) {
+        if (!name) return '';
         return name.split(' ')
             .filter(part => part.length > 0)
             .map(part => part[0])
@@ -1429,6 +1279,7 @@
 
     // Gera cor a partir de uma string (para as iniciais)
     function stringToColor(str) {
+        if (!str) return '#cccccc';
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -1438,5 +1289,4 @@
         return `hsl(${h}, 70%, 60%)`;
     }
 </script>
-</body>
-</html>
+</body> </html>
