@@ -38,6 +38,9 @@ function calculateItemsPerPage() {
 document.addEventListener('DOMContentLoaded', function() {
     initMobileOptimizations();
     setupEventListeners();
+  // Adicione isso dentro da função setupEventListeners()
+document.getElementById('exportClientsBtn').addEventListener('click', exportClientsToCSV);
+document.getElementById('importClientsBtn').addEventListener('click', importClientsFromCSV);
     loadClients();
     
     // Atualiza ao mudar orientação
