@@ -246,6 +246,9 @@ function setupEventListeners() {
     const addEvent = (element, event, handler) => {
         if (element && handler) {
             element.addEventListener(event, handler, { passive: true });
+          // Adicione isso dentro da função setupEventListeners()
+document.getElementById('exportClientsBtn').addEventListener('click', exportClientsToCSV);
+document.getElementById('importClientsBtn').addEventListener('click', importClientsFromCSV);
         }
       // ==================== FUNÇÕES DE EXPORTAR/IMPORTAR ====================
 
