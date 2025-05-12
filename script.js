@@ -387,3 +387,113 @@ if (isMobile) {
         el.style.display = 'none';
     });
 }
+function loadClients() {
+    showLoading(true);
+    
+    // Timeout para conexão
+    const connectionTimeout = setTimeout(() => {
+        showNotification('Conexão demorando... usando cache local', 'warning');
+        loadCachedData();
+    }, 5000); // 5 segundos de timeout
+
+    const connectionRef = database.ref('.info/connected');
+    connectionRef.on('value', (snap) => {
+        clearTimeout(connectionTimeout); // Cancela o timeout se conectar
+        if (snap.val() === true) {
+            setupRealTimeListener();
+        } else {
+            showNotification('Você está offline. Usando dados do cache.', 'warning');
+            loadCachedData();
+        }
+    });
+}
+function setupRealTimeListener() {
+    clientsRef.on('value', (snapshot) => {
+        clientsData = [];
+        const data = snapshot.val();
+        
+        if (data) {
+            Object.keys(data).forEach(key => {
+                clientsData.push(parseClientData(key, data[key]));
+            });
+            
+            localStorage.setItem('crmCache', JSON.stringify(clientsData));
+            applyFiltersAndSorting();
+            renderClientsTable();
+            calculateTotalValue();
+        } else {
+            showNotification('Nenhum cliente cadastrado ainda.', 'info');
+            showNoResults();
+        }
+        showLoading(false);
+    }, (error) => {
+        console.error('Firebase error:', error);
+        showNotification('Erro ao carregar dados. Usando cache local.', 'error');
+        showLoading(false);
+        loadCachedData();
+    });
+}
+function showLoading(show) {
+    const loader = document.getElementById('loadingOverlay');
+    if (loader) {
+        loader.style.display = show ? 'flex' : 'none';
+    } else {
+        console.error('Elemento loadingOverlay não encontrado!');
+        // Cria um loading overlay dinâmico se não existir
+        if (show) {
+            const newLoader = document.createElement('div');
+            newLoader.id = 'loadingOverlay';
+            newLoader.innerHTML = 'Carregando...';
+            newLoader.style.position = 'fixed';
+            newLoader.style.top = '0';
+            newLoader.style.left = '0';
+            newLoader.style.width = '100%';
+            newLoader.style.height = '100%';
+            newLoader.style.background = 'rgba(0,0,0,0.5)';
+            newLoader.style.color = 'white';
+            newLoader.style.display = 'flex';
+            newLoader.style.justifyContent = 'center';
+            newLoader.style.alignItems = 'center';
+            newLoader.style.zIndex = '1000';
+            document.body.appendChild(newLoader);
+        }
+    }
+}
+function showNoResults() {
+    const tableBody = document.getElementById('clientsTableBody');
+    if (tableBody) {
+        tableBody.innerHTML = `
+            <tr class="no-results">
+                <td colspan="7">
+                    <i class="fas fa-info-circle"></i>
+                    Nenhum cliente encontrado
+                </td>
+            </tr>
+        `;
+    }
+    showLoading(false);
+}
+
+function applyFiltersAndSorting() {
+    const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    
+    filteredData = clientsData.filter(client => {
+        return (
+            client.name.toLowerCase().includes(searchTerm) ||
+            client.email.toLowerCase().includes(searchTerm) ||
+            client.phone.includes(searchTerm) ||
+            client.company.toLowerCase().includes(searchTerm)
+        );
+    });
+
+    // Ordenação
+    filteredData.sort((a, b) => {
+        if (a[currentSort.column] < b[currentSort.column]) {
+            return currentSort.direction === 'asc' ? -1 : 1;
+        }
+        if (a[currentSort.column] > b[currentSort.column]) {
+            return currentSort.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+    });
+}
