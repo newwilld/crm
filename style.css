@@ -862,3 +862,26 @@ tbody tr:hover {
     background-color: #e9ecef;
     color: var(--dark-color);
 }
+/* Adicione isso ao seu CSS existente */
+@media (max-width: 768px) {
+    .export-btn span, 
+    .import-btn span {
+        display: none;
+    }
+    
+    .export-btn i, 
+    .import-btn i {
+        margin-right: 0;
+    }
+    
+    .mobile-card .card-actions {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 10px;
+    }
+    
+    .mobile-card .action-btn {
+        width: 40px;
+        height: 40px;
+    }
+}
