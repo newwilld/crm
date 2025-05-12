@@ -1,13 +1,13 @@
 // Configuração do Firebase otimizada para mobile
 const firebaseConfig = {
-    apiKey: "AIzaSyCAZJIWT5FPTshkArRs8v2U9hXAmtnlG-Q",
-    authDomain: "myname22.firebaseapp.com",
-    databaseURL: "https://myname22-default-rtdb.firebaseio.com",
-    projectId: "myname22",
-    storageBucket: "myname22.appspot.com",
-    messagingSenderId: "346543194739",
-    appId: "1:346543194739:web:bcb8fa36574ca5de552006",
-    measurementId: "G-96C1LJH3MB"
+  apiKey: "AIzaSyCAZJIWT5FPTshkArRs8v2U9hXAmtnlG-Q",
+  authDomain: "myname22.firebaseapp.com",
+  databaseURL: "https://myname22-default-rtdb.firebaseio.com",
+  projectId: "myname22",
+  storageBucket: "myname22.firebasestorage.app",
+  messagingSenderId: "346543194739",
+  appId: "1:346543194739:web:bcb8fa36574ca5de552006",
+  measurementId: "G-96C1LJH3MB"
 };
 
 // Inicialização otimizada do Firebase
