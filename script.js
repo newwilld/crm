@@ -253,7 +253,10 @@ function setupEventListeners() {
     addEvent(document.getElementById('prevPage'), 'click', goToPrevPage);
     addEvent(document.getElementById('nextPage'), 'click', goToNextPage);
     addEvent(document.getElementById('exportClientsBtn'), 'click', exportClientsToCSV);
-    addEvent(document.getElementById('importClientsBtn'), 'click', importClientsFromCSV);
+    addEvent(document.getElementById('importClientsBtn'), 'click', () => document.getElementById('importFileInput').click());
+    
+    // Adiciona evento para o input de arquivo de importação
+    addEvent(document.getElementById('importFileInput'), 'change', handleFileImport);
 
     // Busca com debounce otimizado
     const searchInput = document.getElementById('searchInput');
@@ -279,6 +282,173 @@ function setupEventListeners() {
             deleteClient(clientId);
         }
     }, { passive: true });
+}
+
+// ==================== FUNÇÕES DE EXPORTAÇÃO/IMPORTAÇÃO CSV ====================
+
+function exportClientsToCSV() {
+    try {
+        // Obter os dados a serem exportados (usando filteredData ou clientsData)
+        const dataToExport = filteredData.length > 0 ? filteredData : clientsData;
+        
+        if (!dataToExport || dataToExport.length === 0) {
+            showNotification('Nenhum dado para exportar', 'warning');
+            return;
+        }
+
+        // Definir cabeçalhos do CSV
+        const headers = [
+            'ID', 'Nome', 'Email', 'Telefone', 'Empresa', 
+            'Tipo de Serviço', 'Status', 'Valor', 'Notas', 'Último Contato'
+        ];
+        
+        // Mapear os dados para linhas CSV
+        const rows = dataToExport.map(client => [
+            client.id,
+            `"${client.name.replace(/"/g, '""')}"`,
+            `"${client.email.replace(/"/g, '""')}"`,
+            `"${client.phone.replace(/"/g, '""')}"`,
+            `"${client.company.replace(/"/g, '""')}"`,
+            `"${client.serviceType.replace(/"/g, '""')}"`,
+            `"${client.status.replace(/"/g, '""')}"`,
+            client.value,
+            `"${client.notes.replace(/"/g, '""')}"`,
+            `"${client.lastContact}"`
+        ]);
+
+        // Combinar cabeçalhos e linhas
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        // Criar blob e link para download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `clientes_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('Exportação para CSV concluída com sucesso', 'success');
+    } catch (error) {
+        console.error('Erro ao exportar CSV:', error);
+        showNotification('Erro ao exportar para CSV', 'error');
+    }
+}
+
+function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const csvData = e.target.result;
+            const clients = parseCSVData(csvData);
+            
+            if (clients.length === 0) {
+                showNotification('Nenhum dado válido encontrado no arquivo', 'warning');
+                return;
+            }
+            
+            // Confirmar importação
+            if (confirm(`Deseja importar ${clients.length} clientes?`)) {
+                importClients(clients);
+            }
+        } catch (error) {
+            console.error('Erro ao importar CSV:', error);
+            showNotification('Erro ao processar arquivo CSV', 'error');
+        }
+    };
+    reader.onerror = function() {
+        showNotification('Erro ao ler arquivo', 'error');
+    };
+    reader.readAsText(file);
+    
+    // Limpar o input para permitir nova seleção do mesmo arquivo
+    event.target.value = '';
+}
+
+function parseCSVData(csvData) {
+    const lines = csvData.split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const clients = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        
+        const values = lines[i].split(',');
+        const client = {};
+        
+        for (let j = 0; j < headers.length; j++) {
+            let value = values[j] || '';
+            // Remover aspas extras e tratar valores
+            value = value.trim().replace(/^"|"$/g, '');
+            
+            // Converter valores numéricos
+            if (headers[j] === 'Valor') {
+                value = parseFloat(value) || 0;
+            }
+            
+            client[headers[j].toLowerCase()] = value;
+        }
+        
+        // Mapear para o formato do cliente
+        if (client.nome) {
+            clients.push({
+                name: client.nome,
+                email: client.email || '',
+                phone: client.telefone || '',
+                company: client.empresa || '',
+                serviceType: client['tipo de serviço'] || 'Consultoria',
+                status: client.status || 'Realizando',
+                value: client.valor || 0,
+                notes: client.notas || '',
+                lastContact: client['último contato'] || new Date().toISOString().split('T')[0]
+            });
+        }
+    }
+    
+    return clients;
+}
+
+function importClients(clients) {
+    showLoading(true);
+    let importedCount = 0;
+    const errors = [];
+    
+    // Função para processar cada cliente sequencialmente
+    const processNext = (index) => {
+        if (index >= clients.length) {
+            showLoading(false);
+            const message = `Importação concluída: ${importedCount} clientes importados`;
+            if (errors.length > 0) {
+                console.error('Erros durante importação:', errors);
+                showNotification(`${message} (${errors.length} erros)`, 'warning');
+            } else {
+                showNotification(message, 'success');
+            }
+            return;
+        }
+        
+        const client = clients[index];
+        clientsRef.push(client)
+            .then(() => {
+                importedCount++;
+                processNext(index + 1);
+            })
+            .catch(error => {
+                errors.push({ client, error });
+                processNext(index + 1);
+            });
+    };
+    
+    // Iniciar processamento
+    processNext(0);
 }
 
 // ==================== FUNÇÕES UTILITÁRIAS (OTIMIZADAS) ====================
@@ -363,10 +533,6 @@ function handleFormSubmit(e) {
 
 // ==================== FUNÇÕES ADICIONAIS ====================
 
-// [Restante das funções permanece igual, mas com otimizações mobile]
-// ...
-
-// Função para alternar detalhes no modo mobile
 function toggleCardDetails(header) {
     const card = header.parentElement;
     const details = card.querySelector('.card-details');
@@ -387,6 +553,7 @@ if (isMobile) {
         el.style.display = 'none';
     });
 }
+
 function loadClients() {
     showLoading(true);
     
@@ -407,6 +574,7 @@ function loadClients() {
         }
     });
 }
+
 function setupRealTimeListener() {
     clientsRef.on('value', (snapshot) => {
         clientsData = [];
@@ -433,6 +601,7 @@ function setupRealTimeListener() {
         loadCachedData();
     });
 }
+
 function showLoading(show) {
     const loader = document.getElementById('loadingOverlay');
     if (loader) {
@@ -459,6 +628,7 @@ function showLoading(show) {
         }
     }
 }
+
 function showNoResults() {
     const tableBody = document.getElementById('clientsTableBody');
     if (tableBody) {
@@ -497,3 +667,6 @@ function applyFiltersAndSorting() {
         return 0;
     });
 }
+
+// Adicione este input oculto no seu HTML para a importação
+// <input type="file" id="importFileInput" accept=".csv" style="display: none;">
