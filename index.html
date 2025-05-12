@@ -755,7 +755,179 @@
 </head>
 <body>
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js">
+        // Botão Exportar
+            document.getElementById('exportClientsBtn').addEventListener('click', exportClientsToCSV);
+            
+            // Botão Importar
+            document.getElementById('importClientsBtn').addEventListener('click', () => {
+                document.getElementById('importFileInput').click();
+            });
+            
+            // Listener para o input de arquivo
+            document.getElementById('importFileInput').addEventListener('change', importClientsFromCSV);
+        }
+
+        // Exporta clientes para CSV
+        function exportClientsToCSV() {
+            showLoading(true);
+            
+            try {
+                // Cabeçalhos do CSV
+                const headers = ['Nome', 'Email', 'Telefone', 'Empresa', 'Tipo de Serviço', 'Situação', 'Valor', 'Observações', 'Último Contato'];
+                
+                // Dados dos clientes
+                const data = clientsData.map(client => [
+                    `"${client.name.replace(/"/g, '""')}"`,
+                    `"${client.email.replace(/"/g, '""')}"`,
+                    `"${client.phone.replace(/"/g, '""')}"`,
+                    `"${client.company.replace(/"/g, '""')}"`,
+                    `"${client.serviceType.replace(/"/g, '""')}"`,
+                    `"${client.status.replace(/"/g, '""')}"`,
+                    client.value,
+                    `"${client.notes.replace(/"/g, '""')}"`,
+                    `"${client.lastContact}"`
+                ]);
+                
+                // Junta cabeçalhos e dados
+                const csvContent = [
+                    headers.join(','),
+                    ...data.map(row => row.join(','))
+                ].join('\n');
+                
+                // Cria o arquivo CSV
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `clientes_${new Date().toISOString().slice(0, 10)}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showNotification('Exportação concluída com sucesso!', 'success');
+            } catch (error) {
+                console.error('Erro ao exportar clientes:', error);
+                showNotification('Erro ao exportar clientes', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Importa clientes de um arquivo CSV
+        function importClientsFromCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            showLoading(true);
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result;
+                    const lines = content.split('\n');
+                    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                    const newClients = [];
+                    
+                    for (let i = 1; i < lines.length; i++) {
+                        if (!lines[i].trim()) continue;
+                        
+                        const values = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                        const client = {};
+                        
+                        headers.forEach((header, index) => {
+                            let value = values[index] || '';
+                            value = value.trim().replace(/^"|"$/g, '');
+                            
+                            switch (header) {
+                                case 'Nome':
+                                    client.name = value;
+                                    break;
+                                case 'Email':
+                                    client.email = value;
+                                    break;
+                                case 'Telefone':
+                                    client.phone = value;
+                                    break;
+                                case 'Empresa':
+                                    client.company = value;
+                                    break;
+                                case 'Tipo de Serviço':
+                                    client.serviceType = value || 'Consultoria';
+                                    break;
+                                case 'Situação':
+                                    client.status = value || 'Realizando';
+                                    break;
+                                case 'Valor':
+                                    client.value = parseFloat(value) || 0;
+                                    break;
+                                case 'Observações':
+                                    client.notes = value;
+                                    break;
+                                case 'Último Contato':
+                                    client.lastContact = value || new Date().toISOString().split('T')[0];
+                                    break;
+                            }
+                        });
+                        
+                        if (client.name && client.email) {
+                            newClients.push(client);
+                        }
+                    }
+                    
+                    if (newClients.length === 0) {
+                        showNotification('Nenhum cliente válido encontrado no arquivo', 'warning');
+                        return;
+                    }
+                    
+                    if (confirm(`Deseja importar ${newClients.length} cliente(s)?`)) {
+                        importClientsToFirebase(newClients);
+                    }
+                } catch (error) {
+                    console.error('Erro ao importar clientes:', error);
+                    showNotification('Erro ao processar arquivo CSV', 'error');
+                } finally {
+                    showLoading(false);
+                    // Limpa o input para permitir nova importação do mesmo arquivo
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Adiciona clientes importados ao Firebase
+        function importClientsToFirebase(clients) {
+            showLoading(true);
+            let importedCount = 0;
+            let errors = 0;
+            
+            // Função para processar cada cliente sequencialmente
+            const processNext = (index) => {
+                if (index >= clients.length) {
+                    showNotification(`Importação concluída: ${importedCount} cliente(s) adicionado(s), ${errors} erro(s)`, 'success');
+                    showLoading(false);
+                    return;
+                }
+                
+                const client = clients[index];
+                client.lastContact = client.lastContact || new Date().toISOString().split('T')[0];
+                
+                clientsRef.push(client)
+                    .then(() => {
+                        importedCount++;
+                        processNext(index + 1);
+                    })
+                    .catch(error => {
+                        console.error(`Erro ao importar cliente ${index + 1}:`, error);
+                        errors++;
+                        processNext(index + 1);
+                    });
+            };
+            
+            processNext(0);
+        }
+    </script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
     
     <!-- Loading Overlay -->
@@ -1452,5 +1624,6 @@
             return `hsl(${h}, 70%, 60%)`;
         }
     </script>
+    <input type="file" id="importFileInput" accept=".csv" style="display: none;">
 </body>
 </html>
