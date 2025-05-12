@@ -1,5 +1,122 @@
 [
-  { "nome": "Cliente 1", "email": "cliente1@email.com" },
-  { "nome": "Cliente 2", "email": "cliente2@email.com" },
-  { "nome": "Cliente 3", "email": "cliente3@email.com" }
+  {
+    "id": "1",
+    "name": "Ana Silva",
+    "email": "ana@silva.com",
+    "phone": "(11) 98765-4321",
+    "company": "Silva Consultoria",
+    "serviceType": "Consultoria",
+    "status": "Entregue",
+    "value": 3500.00,
+    "lastContact": "2023-07-15",
+    "notes": "Projeto concluído com sucesso"
+  },
+  {
+    "id": "2",
+    "name": "Carlos Oliveira",
+    "email": "carlos@techsolutions.com",
+    "phone": "(21) 99876-5432",
+    "company": "Tech Solutions",
+    "serviceType": "Criação de Site",
+    "status": "Realizando",
+    "value": 5200.50,
+    "lastContact": "2023-07-18",
+    "notes": "Entregar primeira versão até 30/07"
+  },
+  {
+    "id": "3",
+    "name": "Mariana Santos",
+    "email": "mariana@design.com",
+    "phone": "(31) 97777-8888",
+    "company": "Mariana Design",
+    "serviceType": "Identidade Visual",
+    "status": "Realizando",
+    "value": 2800.00,
+    "lastContact": "2023-07-10",
+    "notes": "Aguardando aprovação do logo"
+  },
+  {
+    "id": "4",
+    "name": "Pedro Costa",
+    "email": "pedro@digital.com",
+    "phone": "(51) 96666-7777",
+    "company": "Digital Marketing",
+    "serviceType": "Tráfego Pago",
+    "status": "Entregue",
+    "value": 4200.00,
+    "lastContact": "2023-06-28",
+    "notes": "Campanha performando acima do esperado"
+  },
+  {
+    "id": "5",
+    "name": "Juliana Pereira",
+    "email": "juliana@mentoria.com",
+    "phone": "(48) 95555-6666",
+    "company": "JP Mentoria",
+    "serviceType": "Mentoria",
+    "status": "Realizando",
+    "value": 1800.00,
+    "lastContact": "2023-07-12",
+    "notes": "Sessões semanais"
+  },
+  {
+    "id": "6",
+    "name": "Ricardo Almeida",
+    "email": "ricardo@inovacao.com",
+    "phone": "(19) 94444-5555",
+    "company": "Inovação Tech",
+    "serviceType": "Sistema ERP",
+    "status": "Negociação",
+    "value": 12500.00,
+    "lastContact": "2023-07-05",
+    "notes": "Enviar proposta revisada"
+  },
+  {
+    "id": "7",
+    "name": "Fernanda Lima",
+    "email": "fernanda@moda.com",
+    "phone": "(47) 93333-4444",
+    "company": "Moda & Estilo",
+    "serviceType": "E-commerce",
+    "status": "Entregue",
+    "value": 6800.00,
+    "lastContact": "2023-06-20",
+    "notes": "Loja entregue no prazo"
+  },
+  {
+    "id": "8",
+    "name": "Roberto Nunes",
+    "email": "roberto@advocacia.com",
+    "phone": "(61) 92222-3333",
+    "company": "Nunes Advocacia",
+    "serviceType": "Site Institucional",
+    "status": "Realizando",
+    "value": 3200.00,
+    "lastContact": "2023-07-17",
+    "notes": "Em desenvolvimento"
+  },
+  {
+    "id": "9",
+    "name": "Amanda Costa",
+    "email": "amanda@fotografia.com",
+    "phone": "(85) 91111-2222",
+    "company": "Amanda Fotografia",
+    "serviceType": "Portfólio Online",
+    "status": "Pendente",
+    "value": 2300.00,
+    "lastContact": "2023-07-03",
+    "notes": "Aguardando material do cliente"
+  },
+  {
+    "id": "10",
+    "name": "Lucas Martins",
+    "email": "lucas@restaurante.com",
+    "phone": "(71) 90000-1111",
+    "company": "Sabor Natural",
+    "serviceType": "App Delivery",
+    "status": "Negociação",
+    "value": 8900.00,
+    "lastContact": "2023-07-19",
+    "notes": "Reunião agendada para 25/07"
+  }
 ]
