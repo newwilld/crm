@@ -1,16 +1,6 @@
 {
   "rules": {
-    "clientes": {
-      ".read": "auth != null",
-      ".write": "auth != null",
-      "$clientId": {
-        ".validate": "
-          newData.hasChildren(['name', 'email', 'phone', 'status', 'value']) &&
-          newData.child('name').isString() &&
-          newData.child('email').isString() &&
-          newData.child('value').isNumber()
-        "
-      }
-    }
+    ".read": true,
+    ".write": true
   }
 }
