@@ -627,18 +627,63 @@
         }
 
         /* Loading Spinner */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(0,0,0,.3);
+        #loadingOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
-            border-top-color: #4361ee;
+            border-top-color: var(--primary-color);
             animation: spin 1s ease-in-out infinite;
         }
 
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            background-color: white;
+            box-shadow: var(--box-shadow);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 3000;
+            animation: slideIn 0.3s;
+        }
+
+        .notification.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .notification.warning {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .notification.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
 
         /* Responsividade */
@@ -713,23 +758,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
     
-    <script>
-        // Configuração do Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyCAZJIWT5FPTshkArRs8v2U9hXAmtnlG-Q",
-            authDomain: "myname22.firebaseapp.com",
-            databaseURL: "https://myname22-default-rtdb.firebaseio.com",
-            projectId: "myname22",
-            storageBucket: "myname22.appspot.com",
-            messagingSenderId: "346543194739",
-            appId: "1:346543194739:web:bcb8fa36574ca5de552006"
-        };
-
-        // Inicializar Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const clientsRef = database.ref('clientes');
-    </script>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
 
     <div class="container">
         <!-- Sidebar -->
@@ -824,7 +856,7 @@
                         <tbody id="clientsTableBody">
                             <tr>
                                 <td colspan="7" class="no-results">
-                                    <div class="loading"></div> Carregando clientes...
+                                    <div class="loading-spinner"></div> Carregando clientes...
                                 </td>
                             </tr>
                         </tbody>
@@ -908,6 +940,22 @@
     </div>
 
     <script>
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCAZJIWT5FPTshkArRs8v2U9hXAmtnlG-Q",
+            authDomain: "myname22.firebaseapp.com",
+            databaseURL: "https://myname22-default-rtdb.firebaseio.com",
+            projectId: "myname22",
+            storageBucket: "myname22.appspot.com",
+            messagingSenderId: "346543194739",
+            appId: "1:346543194739:web:bcb8fa36574ca5de552006"
+        };
+
+        // Inicializar Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const clientsRef = database.ref('clientes');
+
         // Variáveis globais
         let clientsData = [];
         let currentPage = 1;
@@ -916,6 +964,7 @@
         let currentSort = { column: 'name', direction: 'asc' };
         let currentFilter = 'all';
         let editingClientId = null;
+        let searchTimeout;
 
         // Inicialização
         document.addEventListener('DOMContentLoaded', function() {
@@ -923,25 +972,97 @@
             loadClients();
         });
 
+        // Mostrar/ocultar loading
+        function showLoading(show) {
+            const loader = document.getElementById('loadingOverlay');
+            if (loader) {
+                loader.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        // Mostrar notificação
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
         // Carrega clientes do Firebase
         function loadClients() {
+            showLoading(true);
+            
+            const connectionTimeout = setTimeout(() => {
+                showNotification('Conexão demorando... usando cache local', 'warning');
+                loadCachedData();
+            }, 5000);
+
             clientsRef.on('value', (snapshot) => {
+                clearTimeout(connectionTimeout);
                 clientsData = [];
                 const data = snapshot.val();
                 
                 if (data) {
                     Object.keys(data).forEach(key => {
-                        clientsData.push({ id: key, ...data[key] });
+                        clientsData.push({
+                            id: key,
+                            name: data[key].name || '',
+                            email: data[key].email || '',
+                            phone: data[key].phone || '',
+                            company: data[key].company || '',
+                            serviceType: data[key].serviceType || 'Consultoria',
+                            status: data[key].status || 'Realizando',
+                            value: parseFloat(data[key].value) || 0,
+                            notes: data[key].notes || '',
+                            lastContact: data[key].lastContact || new Date().toISOString().split('T')[0]
+                        });
                     });
                     
+                    localStorage.setItem('crmCache', JSON.stringify(clientsData));
                     applyFiltersAndSorting();
                     renderClientsTable();
                     calculateTotalValue();
+                    showLoading(false);
                 } else {
-                    document.getElementById('clientsTableBody').innerHTML = 
-                        '<tr><td colspan="7" class="no-results">Nenhum cliente cadastrado</td></tr>';
+                    showNotification('Nenhum cliente cadastrado ainda', 'info');
+                    showNoResults();
+                    showLoading(false);
                 }
+            }, (error) => {
+                clearTimeout(connectionTimeout);
+                console.error("Erro ao carregar clientes:", error);
+                showNotification('Erro ao carregar clientes. Usando cache local.', 'error');
+                loadCachedData();
             });
+        }
+
+        // Carrega dados do cache local
+        function loadCachedData() {
+            const cachedData = localStorage.getItem('crmCache');
+            if (cachedData) {
+                clientsData = JSON.parse(cachedData);
+                applyFiltersAndSorting();
+                renderClientsTable();
+                calculateTotalValue();
+            } else {
+                showNoResults();
+            }
+            showLoading(false);
+        }
+
+        // Mostra mensagem de nenhum resultado
+        function showNoResults() {
+            document.getElementById('clientsTableBody').innerHTML = 
+                '<tr><td colspan="7" class="no-results">Nenhum cliente encontrado</td></tr>';
+            updatePaginationInfo();
         }
 
         // Renderiza a tabela de clientes
@@ -949,8 +1070,7 @@
             const tableBody = document.getElementById('clientsTableBody');
             
             if (filteredData.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="7" class="no-results">Nenhum cliente encontrado</td></tr>';
-                updatePaginationInfo();
+                showNoResults();
                 return;
             }
 
@@ -974,8 +1094,8 @@
                             </div>
                         </div>
                     </td>
-                    <td>R$ ${parseFloat(client.value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                    <td>${client.phone}</td>
+                    <td>R$ ${client.value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td>${formatPhone(client.phone)}</td>
                     <td>${client.company}</td>
                     <td><span class="service-badge">${client.serviceType}</span></td>
                     <td><span class="status-badge ${statusClass}">${client.status}</span></td>
@@ -992,6 +1112,22 @@
             });
 
             updatePaginationInfo();
+        }
+
+        // Formata número de telefone
+        function formatPhone(phone) {
+            if (!phone) return '';
+            // Remove tudo que não é dígito
+            const cleaned = phone.replace(/\D/g, '');
+            
+            // Formatação para números com 10 ou 11 dígitos
+            if (cleaned.length === 11) {
+                return cleaned.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+            } else if (cleaned.length === 10) {
+                return cleaned.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+            }
+            
+            return phone;
         }
 
         // Aplica filtros e ordenação
@@ -1030,6 +1166,64 @@
             });
 
             currentPage = 1;
+        }
+
+        // Atualiza os ícones de ordenação
+        function updateSortIcons() {
+            document.querySelectorAll('[data-sort]').forEach(icon => {
+                icon.className = 'fas fa-sort';
+                if (icon.getAttribute('data-sort') === currentSort.column) {
+                    icon.classList.add(`fa-sort-${currentSort.direction}`);
+                }
+            });
+        }
+
+        // Atualiza as informações de paginação
+        function updatePaginationInfo() {
+            const showingFrom = document.getElementById('showingFrom');
+            const showingTo = document.getElementById('showingTo');
+            const totalClients = document.getElementById('totalClients');
+            const pageNumbers = document.getElementById('pageNumbers');
+            
+            const startIndex = (currentPage - 1) * itemsPerPage + 1;
+            const endIndex = Math.min(startIndex + itemsPerPage - 1, filteredData.length);
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            
+            showingFrom.textContent = startIndex;
+            showingTo.textContent = endIndex;
+            totalClients.textContent = filteredData.length;
+            
+            // Atualiza botões de paginação
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage >= totalPages;
+            
+            // Atualiza números das páginas
+            pageNumbers.innerHTML = '';
+            const maxPagesToShow = 3;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+            
+            if (endPage - startPage + 1 < maxPagesToShow) {
+                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const btn = document.createElement('button');
+                btn.className = `btn ${i === currentPage ? 'active' : ''}`;
+                btn.textContent = i;
+                btn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderClientsTable();
+                });
+                pageNumbers.appendChild(btn);
+            }
+        }
+
+        // Calcula o valor total de todos os clientes
+        function calculateTotalValue() {
+            const total = clientsData.reduce((sum, client) => sum + (parseFloat(client.value) || 0), 0);
+            document.getElementById('totalValue').textContent = 
+                `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
         }
 
         // Configura os event listeners
@@ -1090,10 +1284,13 @@
                 });
             });
             
-            // Busca
+            // Busca com debounce
             document.getElementById('searchInput').addEventListener('input', () => {
-                applyFiltersAndSorting();
-                renderClientsTable();
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    applyFiltersAndSorting();
+                    renderClientsTable();
+                }, 300);
             });
             
             // Delegation para botões de ação na tabela
@@ -1118,175 +1315,142 @@
             });
         }
 
-        // Atualiza os ícones de ordenação
-        function updateSortIcons() {
-            document.querySelectorAll('[data-sort]').forEach(icon => {
-                icon.className = 'fas fa-sort';
-                if (icon.getAttribute('data-sort') === currentSort.column) {
-                    icon.classList.add(`fa-sort-${currentSort.direction}`);
+        // Abre o modal de cliente
+        function openClientModal() {
+            editingClientId = null;
+            document.getElementById('modalTitle').textContent = 'Novo Cliente';
+            document.getElementById('clientForm').reset();
+            document.getElementById('clientModal').style.display = 'flex';
+        }
+
+        // Fecha o modal
+        function closeClientModal() {
+            document.getElementById('clientModal').style.display = 'none';
+        }
+
+        // Manipula o envio do formulário
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const clientData = {
+                name: document.getElementById('clientName').value,
+                email: document.getElementById('clientEmail').value,
+                phone: document.getElementById('clientPhone').value,
+                company: document.getElementById('clientCompany').value,
+                serviceType: document.getElementById('clientServiceType').value,
+                status: document.getElementById('clientStatus').value,
+                value: document.getElementById('clientValue').value,
+                notes: document.getElementById('clientNotes').value,
+                lastContact: new Date().toISOString().split('T')[0]
+            };
+
+            // Validação básica
+            if (!clientData.name || !clientData.email || !clientData.phone || !clientData.serviceType || !clientData.status || !clientData.value) {
+                showNotification('Preencha todos os campos obrigatórios', 'error');
+                return;
+            }
+
+            showLoading(true);
+            
+            if (editingClientId) {
+                // Atualiza cliente existente
+                clientsRef.child(editingClientId).update(clientData)
+                    .then(() => {
+                        showNotification('Cliente atualizado com sucesso!', 'success');
+                        closeClientModal();
+                    })
+                    .catch(error => {
+                        console.error('Erro ao atualizar cliente:', error);
+                        showNotification('Erro ao atualizar cliente', 'error');
+                    })
+                    .finally(() => showLoading(false));
+            } else {
+                // Adiciona novo cliente
+                clientsRef.push(clientData)
+                    .then(() => {
+                        showNotification('Cliente adicionado com sucesso!', 'success');
+                        closeClientModal();
+                    })
+                    .catch(error => {
+                        console.error('Erro ao adicionar cliente:', error);
+                        showNotification('Erro ao adicionar cliente', 'error');
+                    })
+                    .finally(() => showLoading(false));
+            }
+        }
+
+        // Edita um cliente
+        function editClient(clientId) {
+            showLoading(true);
+            
+            clientsRef.child(clientId).once('value', (snapshot) => {
+                const client = snapshot.val();
+                if (!client) {
+                    showNotification('Cliente não encontrado', 'error');
+                    showLoading(false);
+                    return;
                 }
+                
+                editingClientId = clientId;
+                document.getElementById('modalTitle').textContent = 'Editar Cliente';
+                document.getElementById('clientId').value = clientId;
+                document.getElementById('clientName').value = client.name || '';
+                document.getElementById('clientEmail').value = client.email || '';
+                document.getElementById('clientPhone').value = client.phone || '';
+                document.getElementById('clientCompany').value = client.company || '';
+                document.getElementById('clientServiceType').value = client.serviceType || 'Consultoria';
+                document.getElementById('clientStatus').value = client.status || 'Realizando';
+                document.getElementById('clientValue').value = client.value || '';
+                document.getElementById('clientNotes').value = client.notes || '';
+                
+                document.getElementById('clientModal').style.display = 'flex';
+                showLoading(false);
+            }, (error) => {
+                console.error('Erro ao carregar cliente:', error);
+                showNotification('Erro ao carregar dados do cliente', 'error');
+                showLoading(false);
             });
         }
 
-        // Atualiza as informações de paginação
-        function updatePaginationInfo() {
-            const showingFrom = document.getElementById('showingFrom');
-            const showingTo = document.getElementById('showingTo');
-            const totalClients = document.getElementById('totalClients');
-            const pageNumbers = document.getElementById('pageNumbers');
-            
-            const startIndex = (currentPage - 1) * itemsPerPage + 1;
-            const endIndex = Math.min(startIndex + itemsPerPage - 1, filteredData.length);
-            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-            
-            showingFrom.textContent = startIndex;
-            showingTo.textContent = endIndex;
-            totalClients.textContent = filteredData.length;
-            
-            // Atualiza botões de paginação
-            document.getElementById('prevPage').disabled = currentPage === 1;
-            document.getElementById('nextPage').disabled = currentPage >= totalPages;
-            
-            // Atualiza números das páginas
-            pageNumbers.innerHTML = '';
-            const maxPagesToShow = 3;
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-            
-            if (endPage - startPage + 1 < maxPagesToShow) {
-                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        // Exclui um cliente
+        function deleteClient(clientId) {
+            if (confirm('Tem certeza que deseja excluir este cliente?')) {
+                showLoading(true);
+                
+                clientsRef.child(clientId).remove()
+                    .then(() => {
+                        showNotification('Cliente excluído com sucesso!', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Erro ao excluir cliente:', error);
+                        showNotification('Erro ao excluir cliente', 'error');
+                    })
+                    .finally(() => showLoading(false));
+            }
+        }
+
+        // Gera iniciais a partir do nome
+        function getInitials(name) {
+            if (!name) return '';
+            return name.split(' ')
+                .filter(part => part.length > 0)
+                .map(part => part[0])
+                .join('')
+                .toUpperCase()
+                .substring(0, 2);
+        }
+
+        // Gera cor a partir de uma string (para as iniciais)
+        function stringToColor(str) {
+            if (!str) return '#cccccc';
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
             }
             
-            for (let i = startPage; i <= endPage; i++) {
-                const btn = document.createElement('button');
-                btn.className = `btn ${i === currentPage ? 'active' : ''}`;
-                btn.textContent = i;
-                btn.addEventListener('click', () => {
-                    currentPage = i;
-                    renderClientsTable();
-                });
-                pageNumbers.appendChild(btn);
-                   }
-    }
-
-    // Calcula o valor total de todos os clientes
-    function calculateTotalValue() {
-        const total = clientsData.reduce((sum, client) => sum + (parseFloat(client.value) || 0, 0);
-        document.getElementById('totalValue').textContent = 
-            `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-    }
-
-    // Abre o modal de cliente
-    function openClientModal() {
-        editingClientId = null;
-        document.getElementById('modalTitle').textContent = 'Novo Cliente';
-        document.getElementById('clientForm').reset();
-        document.getElementById('clientModal').style.display = 'flex';
-    }
-
-    // Fecha o modal
-    function closeClientModal() {
-        document.getElementById('clientModal').style.display = 'none';
-    }
-
-    // Manipula o envio do formulário
-    function handleFormSubmit(e) {
-        e.preventDefault();
-        
-        const clientData = {
-            name: document.getElementById('clientName').value,
-            email: document.getElementById('clientEmail').value,
-            phone: document.getElementById('clientPhone').value,
-            company: document.getElementById('clientCompany').value,
-            serviceType: document.getElementById('clientServiceType').value,
-            status: document.getElementById('clientStatus').value,
-            value: document.getElementById('clientValue').value,
-            notes: document.getElementById('clientNotes').value,
-            lastContact: new Date().toISOString().split('T')[0]
-        };
-
-        if (editingClientId) {
-            // Atualiza cliente existente
-            clientsRef.child(editingClientId).update(clientData)
-                .then(() => {
-                    alert('Cliente atualizado com sucesso!');
-                    closeClientModal();
-                })
-                .catch(error => {
-                    console.error('Erro ao atualizar cliente:', error);
-                    alert('Erro ao atualizar cliente');
-                });
-        } else {
-            // Adiciona novo cliente
-            clientsRef.push(clientData)
-                .then(() => {
-                    alert('Cliente adicionado com sucesso!');
-                    closeClientModal();
-                })
-                .catch(error => {
-                    console.error('Erro ao adicionar cliente:', error);
-                    alert('Erro ao adicionar cliente');
-                });
+            const h = hash % 360;
+            return `hsl(${h}, 70%, 60%)`;
         }
-    }
-
-    // Edita um cliente
-    function editClient(clientId) {
-        clientsRef.child(clientId).once('value', (snapshot) => {
-            const client = snapshot.val();
-            if (!client) return;
-            
-            editingClientId = clientId;
-            document.getElementById('modalTitle').textContent = 'Editar Cliente';
-            document.getElementById('clientId').value = clientId;
-            document.getElementById('clientName').value = client.name || '';
-            document.getElementById('clientEmail').value = client.email || '';
-            document.getElementById('clientPhone').value = client.phone || '';
-            document.getElementById('clientCompany').value = client.company || '';
-            document.getElementById('clientServiceType').value = client.serviceType || '';
-            document.getElementById('clientStatus').value = client.status || '';
-            document.getElementById('clientValue').value = client.value || '';
-            document.getElementById('clientNotes').value = client.notes || '';
-            
-            document.getElementById('clientModal').style.display = 'flex';
-        });
-    }
-
-    // Exclui um cliente
-    function deleteClient(clientId) {
-        if (confirm('Tem certeza que deseja excluir este cliente?')) {
-            clientsRef.child(clientId).remove()
-                .then(() => {
-                    alert('Cliente excluído com sucesso!');
-                })
-                .catch(error => {
-                    console.error('Erro ao excluir cliente:', error);
-                    alert('Erro ao excluir cliente');
-                });
-        }
-    }
-
-    // Gera iniciais a partir do nome
-    function getInitials(name) {
-        if (!name) return '';
-        return name.split(' ')
-            .filter(part => part.length > 0)
-            .map(part => part[0])
-            .join('')
-            .toUpperCase()
-            .substring(0, 2);
-    }
-
-    // Gera cor a partir de uma string (para as iniciais)
-    function stringToColor(str) {
-        if (!str) return '#cccccc';
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        
-        const h = hash % 360;
-        return `hsl(${h}, 70%, 60%)`;
-    }
-</script>
-</body> </html>
+    </script>
+</body>
+</html>
