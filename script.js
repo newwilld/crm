@@ -244,6 +244,128 @@ function setupEventListeners() {
         if (element && handler) {
             element.addEventListener(event, handler, { passive: true });
         }
+      // ==================== FUNÇÕES DE EXPORTAR/IMPORTAR ====================
+
+function exportClientsToCSV() {
+    showLoading(true);
+    
+    try {
+        // Cabeçalho do CSV
+        let csvContent = "Nome,Email,Telefone,Empresa,Tipo de Serviço,Situação,Valor,Último Contato,Observações\n";
+        
+        // Adiciona os dados dos clientes
+        clientsData.forEach(client => {
+            csvContent += `"${client.name}","${client.email}","${client.phone}","${client.company}","${client.serviceType}","${client.status}",${client.value},"${client.lastContact}","${client.notes.replace(/"/g, '""')}"\n`;
+        });
+        
+        // Cria o blob e o link para download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `clientes_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('Clientes exportados com sucesso!', 'success');
+    } catch (error) {
+        console.error('Erro ao exportar:', error);
+        showNotification('Erro ao exportar clientes', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function importClientsFromCSV() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        showLoading(true);
+        
+        const reader = new FileReader();
+        reader.onload = event => {
+            try {
+                const csvData = event.target.result;
+                const lines = csvData.split('\n');
+                const headers = lines[0].replace(/"/g, '').split(',');
+                
+                // Verifica se o CSV tem o formato esperado
+                if (headers.length < 8) {
+                    throw new Error('Formato de arquivo inválido');
+                }
+                
+                const clientsToImport = [];
+                
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    
+                    // Processa linha do CSV (considerando campos entre aspas)
+                    const values = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                    if (!values || values.length < 8) continue;
+                    
+                    const client = {
+                        name: values[0].replace(/"/g, ''),
+                        email: values[1].replace(/"/g, ''),
+                        phone: values[2].replace(/"/g, ''),
+                        company: values[3].replace(/"/g, ''),
+                        serviceType: values[4].replace(/"/g, ''),
+                        status: values[5].replace(/"/g, ''),
+                        value: parseFloat(values[6].replace(/"/g, '')) || 0,
+                        lastContact: values[7].replace(/"/g, '') || new Date().toISOString().split('T')[0],
+                        notes: values[8] ? values[8].replace(/"/g, '') : ''
+                    };
+                    
+                    clientsToImport.push(client);
+                }
+                
+                if (clientsToImport.length === 0) {
+                    throw new Error('Nenhum cliente válido encontrado no arquivo');
+                }
+                
+                // Confirmação antes de importar
+                if (confirm(`Deseja importar ${clientsToImport.length} clientes?`)) {
+                    showLoading(true);
+                    const importPromises = clientsToImport.map(client => 
+                        clientsRef.push(client).catch(error => {
+                            console.error('Erro ao importar cliente:', error);
+                            return null;
+                        })
+                    );
+                    
+                    Promise.all(importPromises)
+                        .then(() => {
+                            showNotification(`${clientsToImport.length} clientes importados com sucesso!`, 'success');
+                        })
+                        .catch(error => {
+                            console.error('Erro na importação:', error);
+                            showNotification('Erro ao importar alguns clientes', 'warning');
+                        })
+                        .finally(() => showLoading(false));
+                }
+            } catch (error) {
+                console.error('Erro ao processar arquivo:', error);
+                showNotification('Erro ao importar: ' + error.message, 'error');
+                showLoading(false);
+            }
+        };
+        
+        reader.onerror = () => {
+            showNotification('Erro ao ler arquivo', 'error');
+            showLoading(false);
+        };
+        
+        reader.readAsText(file);
+    };
+    
+    input.click();
+}
     };
 
     addEvent(document.getElementById('newClientBtn'), 'click', openClientModal);
