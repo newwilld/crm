@@ -47,7 +47,31 @@ document.addEventListener('DOMContentLoaded', () => {
     renderClientsTable();
   }, { passive: true });
 });
-
+// Adicione esta linha no TOPO do arquivo para exportar funções usadas no HTML
+export { toggleCardDetails, openClientModal, closeClientModal, editClient, deleteClient };
+// Expor funções para o escopo global
+window.toggleCardDetails = toggleCardDetails;
+window.openClientModal = openClientModal;
+window.closeClientModal = closeClientModal;
+window.editClient = editClient;
+window.deleteClient = deleteClient;
+if (!file.name.endsWith('.csv')) {
+  showNotification('Por favor, selecione um arquivo CSV', 'error');
+  showLoading(false);
+  return;
+}
+function exportClientsToCSV() {
+  try {
+    // ... código existente ...
+  } catch (error) {
+    console.error('Erro ao exportar CSV:', error);
+    showNotification(`Erro ao exportar: ${error.message}`, 'error');
+    // Adicione fallback para navegadores mais antigos
+    if (error.name === 'SecurityError') {
+      showNotification('Tente usar outro navegador para exportar', 'warning');
+    }
+  }
+}
 // ==================== OTIMIZAÇÕES MOBILE ====================
 function initMobileOptimizations() {
   // Ajusta áreas de toque
